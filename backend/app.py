@@ -8,6 +8,7 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from functools import wraps
 import os
+from urllib.parse import quote_plus
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -78,16 +79,36 @@ try:
         raise ValueError("MONGODB_URI environment variable is not set")
     
     print("Connecting to MongoDB...")
-    client = MongoClient(
-        mongodb_uri,
-        serverSelectionTimeoutMS=5000,  # 5 second timeout
-        socketTimeoutMS=30000,          # 30 second socket timeout
-        connectTimeoutMS=10000,         # 10 second connection timeout
-        maxPoolSize=50                  # Maximum number of connections
-    )
     
-    # Test the connection
-    client.server_info()  # Will raise an exception if connection fails
+    # Parse the URI to modify it if needed
+    if '@' in mongodb_uri and '://' in mongodb_uri:
+        protocol, rest = mongodb_uri.split('://', 1)
+        if '@' in rest:
+            user_pass, host = rest.rsplit('@', 1)
+            if ':' in user_pass:
+                user, password = user_pass.split(':', 1)
+                password = quote_plus(password)
+                mongodb_uri = f"{protocol}://{user}:{password}@{host}"
+    
+    # Connection options
+    client_options = {
+        'serverSelectionTimeoutMS': 10000,  # 10 second timeout
+        'socketTimeoutMS': 30000,            # 30 second socket timeout
+        'connectTimeoutMS': 10000,           # 10 second connection timeout
+        'maxPoolSize': 50,                   # Maximum number of connections
+        'retryWrites': True,
+        'w': 'majority',
+        'tls': True,
+        'tlsInsecure': True,  # Bypass certificate validation (use only for testing)
+        'ssl': True,
+        'ssl_cert_reqs': 'CERT_NONE'  # Don't validate the certificate
+    }
+    
+    # Create the client with the options
+    client = MongoClient(mongodb_uri, **client_options)
+    
+    # Test the connection with a simple command
+    client.admin.command('ping')
     print("Successfully connected to MongoDB!")
     
     # Initialize database and collections
@@ -97,15 +118,19 @@ try:
     
     # Create indexes for better performance
     appointments_collection.create_index([("user_id", 1)])
-    appointments_collection.create_index([("stylist_id", 1)])
-    appointments_collection.create_index([("date", 1), ("time", 1)])
-    users_collection.create_index("email", unique=True)
+    users_collection.create_index([("email", 1)], unique=True)
     
 except Exception as e:
     print(f"Error connecting to MongoDB: {e}")
     print("Please check your MONGODB_URI in the .env file")
     print("And make sure your IP is whitelisted in MongoDB Atlas")
-    raise
+    print("Also, verify that your MongoDB user has the correct permissions")
+    # Don't raise the exception here to allow the app to start
+    # This is important for Render's health checks
+    client = None
+    db = None
+    appointments_collection = None
+    users_collection = None
 
 # Authentication helper functions
 def create_access_token(data: dict):

@@ -83,9 +83,7 @@ try:
         serverSelectionTimeoutMS=5000,  # 5 second timeout
         socketTimeoutMS=30000,          # 30 second socket timeout
         connectTimeoutMS=10000,         # 10 second connection timeout
-        maxPoolSize=50,                 # Maximum number of connections
-        w='majority',                  # Write concern
-        retryWrites=True               # Enable retryable writes
+        maxPoolSize=50                  # Maximum number of connections
     )
     
     # Test the connection

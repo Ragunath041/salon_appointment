@@ -99,9 +99,9 @@ try:
         'retryWrites': True,
         'w': 'majority',
         'tls': True,
-        'tlsInsecure': True,  # Bypass certificate validation (use only for testing)
-        'ssl': True,
-        'ssl_cert_reqs': 'CERT_NONE'  # Don't validate the certificate
+        'tlsAllowInvalidCertificates': True,  # Skip certificate validation
+        'tlsInsecure': True,                 # Skip hostname validation
+        'connect': True                      # Ensure connection is established immediately
     }
     
     # Create the client with the options

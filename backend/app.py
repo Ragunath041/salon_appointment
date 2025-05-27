@@ -10,24 +10,104 @@ from functools import wraps
 import os
 from dotenv import load_dotenv
 
+# Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
-CORS(app)
+def create_app():
+    app = Flask(__name__)
+    
+    # CORS configuration
+    # Get allowed origins from environment variable or use defaults
+    allowed_origins = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:5173,http://localhost:8080').split(',')
+    
+    # Configure CORS with specific settings
+    CORS(
+        app,
+        resources={
+            r"/*": {
+                "origins": allowed_origins,
+                "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+                "allow_headers": ["Content-Type", "Authorization", "X-Requested-With"],
+                "supports_credentials": True,
+                "expose_headers": ["Content-Type", "Authorization"],
+                "max_age": 86400  # 24 hours
+            }
+        }
+    )
+    
+    # Add CORS headers to all responses
+    @app.after_request
+    def after_request(response):
+        # Get the origin from the request
+        origin = request.headers.get('Origin', '')
+        
+        # If the origin is in our allowed origins, use it, otherwise use the first allowed origin
+        if origin in allowed_origins:
+            response.headers.add('Access-Control-Allow-Origin', origin)
+        elif allowed_origins:
+            response.headers.add('Access-Control-Allow-Origin', allowed_origins[0])
+            
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+        
+        # Handle preflight requests
+        if request.method == 'OPTIONS':
+            response.status_code = 200
+        return response
+    
+    return app
+
+# Create the Flask application
+app = create_app()
 
 # Security configurations
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # MongoDB connection
-client = MongoClient("mongodb://localhost:27017/")
-db = client["salon_appointment"]
-appointments_collection = db["appointments"]
-users_collection = db["users"]
+try:
+    mongodb_uri = os.getenv("MONGODB_URI")
+    db_name = os.getenv("DB_NAME", "salon_appointment")
+    
+    if not mongodb_uri:
+        raise ValueError("MONGODB_URI environment variable is not set")
+    
+    print("Connecting to MongoDB...")
+    client = MongoClient(
+        mongodb_uri,
+        serverSelectionTimeoutMS=5000,  # 5 second timeout
+        socketTimeoutMS=30000,          # 30 second socket timeout
+        connectTimeoutMS=10000,         # 10 second connection timeout
+        maxPoolSize=50,                 # Maximum number of connections
+        w='majority',                  # Write concern
+        retryWrites=True               # Enable retryable writes
+    )
+    
+    # Test the connection
+    client.server_info()  # Will raise an exception if connection fails
+    print("Successfully connected to MongoDB!")
+    
+    # Initialize database and collections
+    db = client[db_name]
+    appointments_collection = db["appointments"]
+    users_collection = db["users"]
+    
+    # Create indexes for better performance
+    appointments_collection.create_index([("user_id", 1)])
+    appointments_collection.create_index([("stylist_id", 1)])
+    appointments_collection.create_index([("date", 1), ("time", 1)])
+    users_collection.create_index("email", unique=True)
+    
+except Exception as e:
+    print(f"Error connecting to MongoDB: {e}")
+    print("Please check your MONGODB_URI in the .env file")
+    print("And make sure your IP is whitelisted in MongoDB Atlas")
+    raise
 
 # Authentication helper functions
 def create_access_token(data: dict):

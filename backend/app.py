@@ -100,7 +100,6 @@ try:
         'w': 'majority',
         'tls': True,
         'tlsAllowInvalidCertificates': True,  # Skip certificate validation
-        'tlsInsecure': True,                 # Skip hostname validation
         'connect': True                      # Ensure connection is established immediately
     }
     

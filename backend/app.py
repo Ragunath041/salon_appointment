@@ -8,6 +8,7 @@ from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from functools import wraps
 import os
+import certifi
 from urllib.parse import quote_plus
 from dotenv import load_dotenv
 
@@ -73,69 +74,49 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+def get_mongodb_client():
+    try:
+        mongodb_uri = os.getenv("MONGODB_URI")
+        if not mongodb_uri:
+            raise ValueError("MONGODB_URI environment variable is not set")
+        
+        client_options = {
+            'serverSelectionTimeoutMS': 5000,
+            'connectTimeoutMS': 5000,
+            'retryWrites': True,
+            'tls': True,
+            'tlsCAFile': certifi.where()
+        }
+        
+        client = MongoClient(mongodb_uri, **client_options)
+        client.admin.command('ping')  # Test connection
+        return client
+    except Exception as e:
+        print(f"MongoDB Connection Error: {e}")
+        return None
+
 # MongoDB connection
 try:
-    mongodb_uri = os.getenv("MONGODB_URI")
+    client = get_mongodb_client()
+    if client is None:
+        raise Exception("Failed to establish MongoDB connection")
+        
     db_name = os.getenv("DB_NAME", "salon_appointment")
-    
-    if not mongodb_uri:
-        raise ValueError("MONGODB_URI environment variable is not set")
-    
-    print("Connecting to MongoDB...")
-    print("Database name:", db_name)
-    
-    # Parse the URI to modify it if needed
-    if '@' in mongodb_uri and '://' in mongodb_uri:
-        protocol, rest = mongodb_uri.split('://', 1)
-        if '@' in rest:
-            user_pass, host = rest.rsplit('@', 1)
-            if ':' in user_pass:
-                user, password = user_pass.split(':', 1)
-                password = quote_plus(password)
-                mongodb_uri = f"{protocol}://{user}:{password}@{host}"
-    
-    # Add error logging
-    print(f"Using MongoDB URI: {mongodb_uri.split('@')[0]}@[HIDDEN]")
-    
-    # Connection options
-    client_options = {
-        'serverSelectionTimeoutMS': 30000,  # 30 second timeout
-        'connectTimeoutMS': 30000,          # 30 second connection timeout
-        'retryWrites': True,
-        'tls': True,
-        'tlsAllowInvalidCertificates': True  # For development only
-    }
-    
-    # Create the client with the options
-    client = MongoClient(mongodb_uri, **client_options)
-    
-    # Test the connection with a simple command
-    client.admin.command('ping')
-    print("Successfully connected to MongoDB!")
-    
-    # Initialize database and collections
     db = client[db_name]
     appointments_collection = db["appointments"]
     users_collection = db["users"]
     
+    print("Successfully connected to MongoDB!")
     print("Connected to database:", db_name)
     print("Available collections:", db.list_collection_names())
     
     # Create indexes for better performance
-    try:
-        appointments_collection.create_index([("user_id", 1)])
-        users_collection.create_index([("email", 1)], unique=True)
-        print("Database indexes created successfully")
-    except Exception as index_error:
-        print("Error creating indexes:", str(index_error))
+    appointments_collection.create_index([("user_id", 1)])
+    users_collection.create_index([("email", 1)], unique=True)
+    print("Database indexes created successfully")
     
 except Exception as e:
-    print(f"Error connecting to MongoDB: {e}")
-    print("Please check your MONGODB_URI in the .env file")
-    print("And make sure your IP is whitelisted in MongoDB Atlas")
-    print("Also, verify that your MongoDB user has the correct permissions")
-    # Don't raise the exception here to allow the app to start
-    # This is important for Render's health checks
+    print(f"Error initializing MongoDB: {e}")
     client = None
     db = None
     appointments_collection = None
@@ -262,9 +243,18 @@ def register():
 @app.route("/login", methods=["POST"])
 def login():
     try:
+        if users_collection is None:
+            print("Error: Database connection is not initialized")
+            return jsonify({"error": "Database connection error"}), 500
+
         data = request.json
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+            
         if not all(key in data for key in ["email", "password"]):
             return jsonify({"error": "Missing required fields"}), 400
+        
+        print(f"Attempting login for email: {data['email']}")  # Debug log
         
         user = users_collection.find_one({"email": data["email"]})
         if not user or not verify_password(data["password"], user["password"]):

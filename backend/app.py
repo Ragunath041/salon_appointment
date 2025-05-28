@@ -196,11 +196,21 @@ def get_stylists():
 def register():
     try:
         data = request.json
+        if not data:
+            return jsonify({"error": "No JSON data provided"}), 400
+            
+        print("Received registration data:", data)  # Debug log
+        
         if not all(key in data for key in ["email", "password", "name", "role"]):
-            return jsonify({"error": "Missing required fields"}), 400
+            return jsonify({"error": "Missing required fields. Required: email, password, name, role"}), 400
+        
+        # Check database connection
+        if not db:
+            return jsonify({"error": "Database connection failed. Please check your MongoDB connection."}), 500
         
         # Check if user already exists
-        if users_collection.find_one({"email": data["email"]}):
+        existing_user = users_collection.find_one({"email": data["email"]})
+        if existing_user:
             return jsonify({"error": "Email already registered"}), 400
         
         # Create new user
@@ -208,14 +218,24 @@ def register():
             "email": data["email"],
             "password": get_password_hash(data["password"]),
             "name": data["name"],
-            "role": data["role"],  # Can be 'user' or 'stylist'
+            "role": data["role"].lower(),  # Convert role to lowercase
             "created_at": datetime.utcnow()
         }
-        users_collection.insert_one(user_data)
         
-        return jsonify({"message": "User registered successfully"}), 201
+        # Try to insert the new user
+        try:
+            result = users_collection.insert_one(user_data)
+            print(f"User created with ID: {result.inserted_id}")  # Debug log
+            return jsonify({"message": "User registered successfully"}), 201
+        except Exception as db_error:
+            print(f"Database error during user creation: {str(db_error)}")
+            return jsonify({"error": "Failed to create user in database"}), 500
+            
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"Error in /register endpoint: {str(e)}")
+        import traceback
+        traceback.print_exc()  # This will print the full traceback to the console
+        return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 @app.route("/login", methods=["POST"])
 def login():

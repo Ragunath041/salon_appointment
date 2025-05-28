@@ -62,6 +62,9 @@ def create_app():
 # Create the Flask application
 app = create_app()
 
+# Get port from environment variable with a fallback to 10000
+port = int(os.environ.get('PORT', 10000))
+
 # Security configurations
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
@@ -79,6 +82,7 @@ try:
         raise ValueError("MONGODB_URI environment variable is not set")
     
     print("Connecting to MongoDB...")
+    print("Database name:", db_name)
     
     # Parse the URI to modify it if needed
     if '@' in mongodb_uri and '://' in mongodb_uri:
@@ -90,17 +94,16 @@ try:
                 password = quote_plus(password)
                 mongodb_uri = f"{protocol}://{user}:{password}@{host}"
     
+    # Add error logging
+    print(f"Using MongoDB URI: {mongodb_uri.split('@')[0]}@[HIDDEN]")
+    
     # Connection options
     client_options = {
-        'serverSelectionTimeoutMS': 10000,  # 10 second timeout
-        'socketTimeoutMS': 30000,            # 30 second socket timeout
-        'connectTimeoutMS': 10000,           # 10 second connection timeout
-        'maxPoolSize': 50,                   # Maximum number of connections
+        'serverSelectionTimeoutMS': 30000,  # 30 second timeout
+        'connectTimeoutMS': 30000,          # 30 second connection timeout
         'retryWrites': True,
-        'w': 'majority',
         'tls': True,
-        'tlsAllowInvalidCertificates': True,  # Skip certificate validation
-        'connect': True                      # Ensure connection is established immediately
+        'tlsAllowInvalidCertificates': True  # For development only
     }
     
     # Create the client with the options
@@ -115,9 +118,16 @@ try:
     appointments_collection = db["appointments"]
     users_collection = db["users"]
     
+    print("Connected to database:", db_name)
+    print("Available collections:", db.list_collection_names())
+    
     # Create indexes for better performance
-    appointments_collection.create_index([("user_id", 1)])
-    users_collection.create_index([("email", 1)], unique=True)
+    try:
+        appointments_collection.create_index([("user_id", 1)])
+        users_collection.create_index([("email", 1)], unique=True)
+        print("Database indexes created successfully")
+    except Exception as index_error:
+        print("Error creating indexes:", str(index_error))
     
 except Exception as e:
     print(f"Error connecting to MongoDB: {e}")
@@ -199,13 +209,14 @@ def register():
             return jsonify({"error": "No JSON data provided"}), 400
             
         print("Received registration data:", data)  # Debug log
+        print("Database connection status:", "Connected" if users_collection is not None else "Not connected")  # Debug log
         
         if not all(key in data for key in ["email", "password", "name", "role"]):
             return jsonify({"error": "Missing required fields. Required: email, password, name, role"}), 400
         
-        # Check database connection
-        if not db:
-            return jsonify({"error": "Database connection failed. Please check your MongoDB connection."}), 500
+        if users_collection is None:
+            print("Error: users_collection is not initialized")  # Debug log
+            return jsonify({"error": "Database connection is not properly initialized"}), 500
         
         # Check if user already exists
         existing_user = users_collection.find_one({"email": data["email"]})
@@ -223,12 +234,24 @@ def register():
         
         # Try to insert the new user
         try:
+            print("Attempting to insert user:", {k: v if k != 'password' else '[HIDDEN]' for k, v in user_data.items()})
             result = users_collection.insert_one(user_data)
-            print(f"User created with ID: {result.inserted_id}")  # Debug log
-            return jsonify({"message": "User registered successfully"}), 201
+            print(f"User created with ID: {result.inserted_id}")
+            return jsonify({
+                "message": "User registered successfully",
+                "userId": str(result.inserted_id),
+                "status": "success"
+            }), 201
         except Exception as db_error:
             print(f"Database error during user creation: {str(db_error)}")
-            return jsonify({"error": "Failed to create user in database"}), 500
+            error_message = str(db_error)
+            if "duplicate key error" in error_message.lower():
+                return jsonify({"error": "Email already exists", "status": "error"}), 409
+            return jsonify({
+                "error": "Failed to create user",
+                "details": error_message,
+                "status": "error"
+            }), 500
             
     except Exception as e:
         print(f"Error in /register endpoint: {str(e)}")

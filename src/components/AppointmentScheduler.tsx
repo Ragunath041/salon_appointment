@@ -18,11 +18,12 @@ const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
   email: z.string().email("Please enter a valid email address."),
   phone: z.string().min(10, "Please enter a valid phone number."),
-  service: z.string(),
-  stylist: z.string(),
+  service: z.string().min(1, "Please select a service"),
+  stylist: z.string().min(1, "Please select a stylist"),
   date: z.string().optional(),
-  time:z.string().optional(),
+  time: z.string().optional(),
   selected_salon: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 interface Stylist {
@@ -126,9 +127,9 @@ const AppointmentScheduler = () => {
     "East Side Style",
   ];
 
-  const onSubmit = async (values) => {
-    if (!date || !time) {
-      toast.error("Please select a date and time for your appointment");
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    if (!date || !time || !selectedSalon) {
+      toast.error("Please select a date, time, and salon location for your appointment");
       return;
     }
 
@@ -172,6 +173,7 @@ const AppointmentScheduler = () => {
 
   const handleSalonSelect = (salonName: string) => {
     setSelectedSalon(salonName);
+    form.setValue("selected_salon", salonName);
     setShowMap(false);
   };
 
@@ -306,21 +308,67 @@ const AppointmentScheduler = () => {
               </FormItem>
             )} />
 
-            <h3>Select Date</h3>
-            <Calendar mode="single" selected={date} onSelect={setDate} />
+            <div className="space-y-4">
+              <div>
+                <h3 className="mb-2 font-medium">Select Date</h3>
+                <Calendar 
+                  mode="single" 
+                  selected={date} 
+                  onSelect={(newDate) => {
+                    setDate(newDate || new Date());
+                    form.setValue("date", newDate ? format(newDate, "yyyy-MM-dd") : "");
+                  }}
+                  disabled={(date) => date < new Date()} // Disable past dates
+                  className="rounded-md border"
+                />
+              </div>
 
-            <h3>Select Time</h3>
-            <Select onValueChange={setTime} value={time}>
-              <SelectTrigger><SelectValue placeholder="Select available time" /></SelectTrigger>
-              <SelectContent>
-                {timeSlots.map((slot) => (<SelectItem key={slot} value={slot}>{slot}</SelectItem>))}
-              </SelectContent>
-            </Select>
+              <div>
+                <h3 className="mb-2 font-medium">Select Time</h3>
+                <Select 
+                  onValueChange={(newTime) => {
+                    setTime(newTime);
+                    form.setValue("time", newTime);
+                  }} 
+                  value={time}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select available time" /></SelectTrigger>
+                  <SelectContent>
+                    {timeSlots.map((slot) => (
+                      <SelectItem key={slot} value={slot}>{slot}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <Button type="button" onClick={() => setShowMap(true)}>Select Location</Button>
-            <Button type="submit" disabled={loading}>
-              {loading ? "Scheduling..." : "Book Appointment"}
-            </Button>
+              {date && time && (
+                <p className="text-sm text-muted-foreground">
+                  Selected: {format(date, "MMMM d, yyyy")} at {time}
+                </p>
+              )}
+            </div>
+
+            <FormField control={form.control} name="notes" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Additional Notes</FormLabel>
+                <FormControl>
+                  <Textarea 
+                    placeholder="Any special requests or notes for your appointment" 
+                    {...field} 
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <div className="space-x-4">
+              <Button type="button" onClick={() => setShowMap(true)}>
+                {selectedSalon ? `Selected: ${selectedSalon}` : "Select Location"}
+              </Button>
+              <Button type="submit" disabled={loading}>
+                {loading ? "Scheduling..." : "Book Appointment"}
+              </Button>
+            </div>
           </form>
         </Form>
       </CardContent>

@@ -20,7 +20,7 @@ def create_app():
     
     # CORS configuration
     # Get allowed origins from environment variable or use defaults
-    allowed_origins = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:5173,http://localhost:8080').split(',')
+    allowed_origins = os.getenv('ALLOWED_ORIGINS', 'https://salon-appointment-9rv6.vercel.app,http://localhost:3000,http://localhost:5173,http://localhost:8080').split(',')
     
     # Configure CORS with specific settings
     CORS(

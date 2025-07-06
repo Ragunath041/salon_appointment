@@ -92,7 +92,7 @@ export function AdminDashboard() {
       case 'pending':
         return <Badge variant="secondary">Pending</Badge>;
       case 'accepted':
-        return <Badge variant="success">Accepted</Badge>;
+        return <Badge variant="default" className="bg-green-500 text-white">Accepted</Badge>;
       case 'rejected':
         return <Badge variant="destructive">Rejected</Badge>;
       default:

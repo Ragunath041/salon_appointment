@@ -27,7 +27,7 @@ interface Appointment {
   created_at: string;
 }
 
-const API_BASE_URL = import.meta.env.VITE_API_URL;
+const API_BASE_URL = 'https://salon-appointment-1.onrender.com';
 
 export function AdminDashboard() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -43,7 +43,7 @@ export function AdminDashboard() {
     if (!token) return;
     
     try {
-      const response = await fetch(`${API_BASE_URL}/salon_appointment`, {
+      const response = await fetch(`https://salon-appointment-1.onrender.com/salon_appointment`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

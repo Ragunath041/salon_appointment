@@ -27,6 +27,8 @@ interface Appointment {
   created_at: string;
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_URL;
+
 export function AdminDashboard() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +43,7 @@ export function AdminDashboard() {
     if (!token) return;
     
     try {
-      const response = await fetch('http://localhost:5000/salon_appointment', {
+      const response = await fetch(`${API_BASE_URL}/salon_appointment`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -65,7 +67,7 @@ export function AdminDashboard() {
     if (!token) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/salon_appointment/${appointmentId}/status`, {
+      const response = await fetch(`${API_BASE_URL}/salon_appointment/${appointmentId}/status`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -14,6 +14,8 @@ import { toast } from "sonner";
 import Map from "./Map";
 import { useAuth } from "@/contexts/AuthContext";
 
+const API_BASE_URL = import.meta.env.VITE_API_URL;
+
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),
   email: z.string().email("Please enter a valid email address."),
@@ -60,7 +62,7 @@ const AppointmentScheduler = () => {
     // Fetch stylists from backend
     const fetchStylists = async () => {
       try {
-        const response = await fetch('http://localhost:5000/stylists');
+        const response = await fetch(`${API_BASE_URL}/stylists`);
         if (!response.ok) throw new Error('Failed to fetch stylists');
         const data = await response.json();
         setStylists(data);
@@ -143,7 +145,7 @@ const AppointmentScheduler = () => {
     };
 
     try {
-      const response = await fetch("http://localhost:5000/salon_appointment", {
+      const response = await fetch(`${API_BASE_URL}/salon_appointment`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

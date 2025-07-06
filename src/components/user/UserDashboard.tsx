@@ -20,11 +20,12 @@ const UserDashboard = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const { token } = useAuth();
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
     const fetchAppointments = async () => {
       try {
-        const response = await fetch("http://localhost:5000/salon_appointment", {
+        const response = await fetch(`${API_BASE_URL}/salon_appointment`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

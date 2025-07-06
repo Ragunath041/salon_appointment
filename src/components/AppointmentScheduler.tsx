@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import Map from "./Map";
 import { useAuth } from "@/contexts/AuthContext";
 
-const API_BASE_URL = 'https://salon-appointment-1.onrender.com';
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 const formSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters."),

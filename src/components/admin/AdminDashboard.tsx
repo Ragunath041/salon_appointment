@@ -27,7 +27,7 @@ interface Appointment {
   created_at: string;
 }
 
-const API_BASE_URL = 'https://salon-appointment-1.onrender.com';
+
 
 export function AdminDashboard() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);

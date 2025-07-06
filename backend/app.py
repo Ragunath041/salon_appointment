@@ -20,7 +20,7 @@ def create_app():
     
     # CORS configuration
     # Get allowed origins from environment variable or use defaults
-    allowed_origins = os.getenv('ALLOWED_ORIGINS', 'https://salon-appointment-9rv6.vercel.app,http://localhost:3000,http://localhost:5173,http://localhost:8080').split(',')
+    allowed_origins = os.getenv('ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:5173,http://localhost:8080').split(',')
     
     # Configure CORS with specific settings
     CORS(
@@ -75,24 +75,53 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def get_mongodb_client():
+    """
+    Create and return a MongoDB client with proper error handling and connection settings.
+    """
     try:
         mongodb_uri = os.getenv("MONGODB_URI")
-        if not mongodb_uri:
-            raise ValueError("MONGODB_URI environment variable is not set")
+        if not mongodb_uri or mongodb_uri == "your_mongodb_connection_string_here":
+            raise ValueError("MongoDB connection string is not properly configured in .env file")
         
+        # Configure client options with sensible defaults
         client_options = {
-            'serverSelectionTimeoutMS': 5000,
-            'connectTimeoutMS': 5000,
+            'serverSelectionTimeoutMS': 10000,  # 10 seconds
+            'connectTimeoutMS': 10000,         # 10 seconds
+            'socketTimeoutMS': 30000,          # 30 seconds
             'retryWrites': True,
             'tls': True,
-            'tlsCAFile': certifi.where()
+            'tlsCAFile': certifi.where(),
+            'tlsAllowInvalidCertificates': False,
+            'tlsInsecure': False,
+            'maxPoolSize': 100,                # Maximum number of connections
+            'minPoolSize': 1,                  # Minimum number of connections
+            'maxIdleTimeMS': 30000,            # Close idle connections after 30 seconds
+            'waitQueueTimeoutMS': 10000,       # Wait up to 10 seconds for a connection
+            'connect': True,                   # Connect on initialization
+            'heartbeatFrequencyMS': 10000,     # Check server status every 10 seconds
+            'appname': 'SalonAppointmentAPI'   # Identify this connection in MongoDB logs
         }
         
+        print("Connecting to MongoDB...")
         client = MongoClient(mongodb_uri, **client_options)
-        client.admin.command('ping')  # Test connection
+        
+        # Test the connection
+        client.admin.command('ping')
+        print("✅ Successfully connected to MongoDB!")
         return client
+        
     except Exception as e:
-        print(f"MongoDB Connection Error: {e}")
+        error_msg = f"❌ MongoDB Connection Error: {str(e)}"
+        print(error_msg)
+        if "timed out" in str(e).lower():
+            print("  - Check your internet connection")
+            print("  - Verify MongoDB server is running")
+            print("  - Check if your IP is whitelisted in MongoDB Atlas")
+        elif "bad auth" in str(e).lower():
+            print("  - Check your MongoDB username and password")
+            print("  - Verify the authentication database is correct")
+        elif "bad dns" in str(e).lower():
+            print("  - Check your MongoDB connection string format")
         return None
 
 # MongoDB connection
@@ -376,5 +405,43 @@ def delete_appointment(current_user, appointment_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+def check_environment():
+    """Check if all required environment variables are set."""
+    required_vars = [
+        'MONGODB_URI',
+        'SECRET_KEY',
+        'JWT_ALGORITHM',
+        'DB_NAME'
+    ]
+    
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    if missing_vars:
+        print("\n❌ Error: The following required environment variables are not set:")
+        for var in missing_vars:
+            print(f"  - {var}")
+        print("\nPlease update your .env file with the correct values and restart the server.")
+        return False
+    return True
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    # Check environment before starting
+    if not check_environment():
+        exit(1)
+    
+    # Get port from environment or use default
+    port = int(os.getenv('PORT', 5000))
+    
+    # Print startup banner
+    print("\n" + "="*50)
+    print(f"🚀 Starting Salon Appointment API on port {port}")
+    print(f"🔗 Allowed Origins: {os.getenv('ALLOWED_ORIGINS')}")
+    print("="*50 + "\n")
+    
+    try:
+        app.run(host='0.0.0.0', port=port, debug=os.getenv('DEBUG', 'False').lower() == 'true')
+    except Exception as e:
+        print(f"\n❌ Failed to start server: {str(e)}")
+        if "Address already in use" in str(e):
+            print(f"  - Port {port} is already in use by another application")
+            print(f"  - Try stopping the other application or use a different port")
+        exit(1)

@@ -20,7 +20,7 @@ const UserDashboard = () => {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const { token } = useAuth();
-  const API_BASE_URL = 'https://salon-appointment-1.onrender.com';
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
 
   useEffect(() => {
     const fetchAppointments = async () => {

@@ -129,7 +129,7 @@ const AppointmentScheduler = () => {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!date || !time || !selectedSalon) {
-      toast.error("Please select a date, time, and salon location for your appointment");
+      toast.error("Please select a date, time, and salon location for your appointment.");
       return;
     }
 
